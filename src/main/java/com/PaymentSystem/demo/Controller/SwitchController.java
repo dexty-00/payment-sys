@@ -10,6 +10,7 @@ import com.stripe.exception.StripeException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/switch")
@@ -19,17 +20,14 @@ public class SwitchController {
     private final SubscriptionManager subscriptionManager;
 
     @PostMapping("/to-stripe")
-    public ResponseEntity<String> switchToStripe(
-            @RequestParam String userId,
-            @RequestParam(required = false) String email) throws StripeException {
-        String checkoutUrl = subscriptionManager.switchToStripe(userId, email);
+    public ResponseEntity<String> switchToStripe(@RequestParam Long userId) throws StripeException {
+        String checkoutUrl = subscriptionManager.switchToStripe(userId);
         return ResponseEntity.ok(checkoutUrl);
     }
 
     @PostMapping("/to-credits")
-    public ResponseEntity<CreditBalance> switchToCredits(
-            @RequestBody CreditSubscriptionRequest request) {
-        return ResponseEntity.ok(subscriptionManager.switchToCredits(
-                request.getUserId(), request));
+    public ResponseEntity<?> switchToCredits(@RequestParam Long userId) {
+        var result = subscriptionManager.switchToCredits(userId, 2000, 800);
+        return ResponseEntity.ok(result);
     }
 }

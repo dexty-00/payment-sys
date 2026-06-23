@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
 
+
 @Entity
 @Table(name = "subscriptions")
 @Data
@@ -16,14 +17,15 @@ public class SubscriptionRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @OneToOne
+    @JoinColumn(name = "user_fk", nullable = false)
+    private User user;
+
     @Column(nullable = false, unique = true)
     private String stripeCustomerId;
 
     @Column(nullable = false, unique = true)
     private String stripeSubscriptionId;
-
-    @Column(nullable = false)
-    private String userId;
 
     @Column(nullable = false)
     private String status;

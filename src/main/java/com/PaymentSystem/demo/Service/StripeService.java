@@ -1,23 +1,20 @@
 package com.PaymentSystem.demo.Service;
-
-
 import com.PaymentSystem.demo.Entity.SubscriptionRecord;
+import com.PaymentSystem.demo.Entity.User;
 import com.PaymentSystem.demo.Repository.SubscriptionRepository;
 import com.stripe.exception.StripeException;
-import com.stripe.model.*;
-import com.stripe.model.checkout.Session;
-import com.stripe.param.checkout.SessionCreateParams;
-import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import com.stripe.net.Webhook;
 import com.stripe.model.Event;
 import com.stripe.model.Invoice;
 import com.stripe.model.Subscription;
 import com.stripe.model.SubscriptionItem;
-
+import com.stripe.model.checkout.Session;
+import com.stripe.net.Webhook;
+import com.stripe.param.checkout.SessionCreateParams;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
@@ -25,9 +22,7 @@ import com.stripe.model.SubscriptionItem;
 public class StripeService {
 
     private final SubscriptionRepository subscriptionRepository;
-
-    @Value("${stripe.api.key}")
-    private String apiKey;
+    private final UserService userService;
 
     @Value("${stripe.webhook.secret}")
     private String webhookSecret;
@@ -38,9 +33,9 @@ public class StripeService {
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
 
-    // ========== CHECKOUT ==========
+    public String createCheckout(String email) throws StripeException {
+        User user = userService.getOrCreateUser(email);
 
-    public String createCheckout(String userId, String customerEmail) throws StripeException {
         SessionCreateParams.Builder paramsBuilder = SessionCreateParams.builder()
                 .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
                 .addLineItem(
@@ -51,17 +46,15 @@ public class StripeService {
                 )
                 .setSuccessUrl(baseUrl + "/api/success?session_id={CHECKOUT_SESSION_ID}")
                 .setCancelUrl(baseUrl + "/api/cancel")
-                .setClientReferenceId(userId);
+                .setClientReferenceId(user.getId().toString());
 
-        if (customerEmail != null) {
-            paramsBuilder.setCustomerEmail(customerEmail);
+        if (email != null) {
+            paramsBuilder.setCustomerEmail(email);
         }
 
         Session session = Session.create(paramsBuilder.build());
         return session.getUrl();
     }
-
-    // ========== WEBHOOKS ==========
 
     @Transactional
     public void processWebhook(String payload, String sigHeader) throws Exception {
@@ -71,12 +64,6 @@ public class StripeService {
         switch (event.getType()) {
             case "checkout.session.completed":
                 handleCheckoutCompleted(event);
-                break;
-            case "invoice.payment_succeeded":
-                handleInvoicePaymentSucceeded(event);
-                break;
-            case "invoice.payment_failed":
-                handleInvoicePaymentFailed(event);
                 break;
             case "customer.subscription.updated":
                 handleSubscriptionUpdated(event);
@@ -96,8 +83,9 @@ public class StripeService {
 
         String subscriptionId = session.getSubscription();
         String customerId = session.getCustomer();
-        String userId = session.getClientReferenceId();
+        Long userId = Long.parseLong(session.getClientReferenceId());
 
+        User user = userService.getUserById(userId);
         Subscription subscription = Subscription.retrieve(subscriptionId);
 
         String priceId = null;
@@ -112,9 +100,9 @@ public class StripeService {
         }
 
         SubscriptionRecord record = SubscriptionRecord.builder()
+                .user(user)
                 .stripeCustomerId(customerId)
                 .stripeSubscriptionId(subscriptionId)
-                .userId(userId)
                 .status(subscription.getStatus())
                 .currentPriceId(priceId)
                 .currentPeriodEnd(currentPeriodEnd)
@@ -122,7 +110,7 @@ public class StripeService {
                 .build();
 
         subscriptionRepository.save(record);
-        log.info("✅ Saved subscription for user={}, status={}", userId, subscription.getStatus());
+        log.info("Saved subscription for userId={}, status={}", userId, subscription.getStatus());
     }
 
     @Transactional
@@ -144,7 +132,6 @@ public class StripeService {
                     }
 
                     subscriptionRepository.save(record);
-                    log.info("📝 Updated subscription {} -> {}", sub.getId(), sub.getStatus());
                 });
     }
 
@@ -157,31 +144,13 @@ public class StripeService {
                 .ifPresent(record -> {
                     record.setStatus("canceled");
                     subscriptionRepository.save(record);
-                    log.info("❌ Subscription canceled: {}", sub.getId());
                 });
     }
-
-    private void handleInvoicePaymentSucceeded(Event event) throws Exception {
-        Invoice invoice = (Invoice) deserializeEvent(event);
-        if (invoice == null) return;
-        log.info("💰 Payment succeeded for subscription={}");
-    }
-
-    private void handleInvoicePaymentFailed(Event event) throws Exception {
-        Invoice invoice = (Invoice) deserializeEvent(event);
-        if (invoice == null) return;
-        log.info("⚠️ Payment failed for subscription={}");
-    }
-
-    // ========== CANCEL ==========
 
     public void cancelStripeSubscription(String stripeSubscriptionId) throws Exception {
         Subscription subscription = Subscription.retrieve(stripeSubscriptionId);
         subscription.cancel();
-        log.info("Canceled Stripe subscription: {}", stripeSubscriptionId);
     }
-
-    // ========== PORTAL ==========
 
     public String createCustomerPortal(String customerId) throws StripeException {
         com.stripe.param.billingportal.SessionCreateParams params =
@@ -195,7 +164,9 @@ public class StripeService {
         return portalSession.getUrl();
     }
 
-    // ========== HELPER ==========
+    public SubscriptionRecord getSubscriptionByUserId(Long userId) {
+        return subscriptionRepository.findByUser_Id(userId).orElse(null);
+    }
 
     private com.stripe.model.StripeObject deserializeEvent(Event event) {
         var deserializer = event.getDataObjectDeserializer();
@@ -206,12 +177,9 @@ public class StripeService {
             try {
                 return deserializer.deserializeUnsafe();
             } catch (Exception e) {
-                log.error("Failed to deserialize event: {}", event.getType(), e);
+                log.error("Failed to deserialize", e);
                 return null;
             }
         }
-    }
-    public SubscriptionRecord getSubscriptionByUserId(String userId) {
-        return subscriptionRepository.findByUserId(userId).orElse(null);
     }
 }

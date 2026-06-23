@@ -1,32 +1,29 @@
 package com.PaymentSystem.demo.Service;
 
 import com.PaymentSystem.demo.Entity.CreditBalance;
-import com.PaymentSystem.demo.Entity.DTO.CreditSubscriptionRequest;
+import com.PaymentSystem.demo.Entity.SubscriptionRecord;
+import com.PaymentSystem.demo.Entity.User;
 import com.PaymentSystem.demo.Repository.CreditBalanceRepository;
-import com.PaymentSystem.demo.Repository.SubscriptionRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
 import java.time.Instant;
 import java.util.Optional;
 
 
-
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CreditService {
 
     private final CreditBalanceRepository creditBalanceRepository;
+    private final StripeService stripeService;
 
     @Transactional
-    public CreditBalance createCreditSubscription(CreditSubscriptionRequest request) {
+    public CreditBalance createCreditSubscription(User user, Integer initialBalance, Integer monthlyCost) {
         CreditBalance balance = CreditBalance.builder()
-                .userId(request.getUserId())
-                .balance(request.getInitialBalance())
-                .monthlyCost(request.getMonthlyCost())
+                .user(user)
+                .balance(initialBalance)
+                .monthlyCost(monthlyCost)
                 .active(true)
                 .lastDeductionDate(Instant.now())
                 .nextDeductionDate(Instant.now().plusSeconds(30L * 24 * 60 * 60))
@@ -35,9 +32,22 @@ public class CreditService {
         return creditBalanceRepository.save(balance);
     }
 
+    public CreditBalance changeToCreditSubscription(User user, Integer initialBalance, Integer monthlyCost, Long nextInvoiceDate){
+        // deduction date = Stripe Renewal Date
+
+        return CreditBalance.builder()
+                .user(user)
+                .balance(initialBalance)
+                .monthlyCost(monthlyCost)
+                .active(true)
+                .lastDeductionDate(null)
+                .nextDeductionDate(Instant.ofEpochSecond(nextInvoiceDate))
+                .build();
+    }
+
     @Transactional
-    public boolean deductCredits(String userId) {
-        Optional<CreditBalance> opt = creditBalanceRepository.findByUserId(userId);
+    public boolean deductCredits(Long userId) {
+        Optional<CreditBalance> opt = creditBalanceRepository.findByUser_Id(userId);
         if (opt.isEmpty()) return false;
 
         CreditBalance cb = opt.get();
@@ -52,15 +62,12 @@ public class CreditService {
             cb.setActive(false);
         }
         creditBalanceRepository.save(cb);
-
-        log.info("Deducted {} credits for user={}, remaining={}",
-                cb.getMonthlyCost(), userId, cb.getBalance());
         return true;
     }
 
     @Transactional
-    public CreditBalance topUpCredits(String userId, Integer amount) {
-        CreditBalance cb = creditBalanceRepository.findByUserId(userId)
+    public CreditBalance topUpCredits(Long userId, Integer amount) {
+        CreditBalance cb = creditBalanceRepository.findByUser_Id(userId)
                 .orElseThrow(() -> new RuntimeException("No credit balance found"));
 
         cb.setBalance(cb.getBalance() + amount);
@@ -72,13 +79,13 @@ public class CreditService {
         return creditBalanceRepository.save(cb);
     }
 
-    public boolean isCreditActive(String userId) {
-        return creditBalanceRepository.findByUserId(userId)
+    public boolean isCreditActive(Long userId) {
+        return creditBalanceRepository.findByUser_Id(userId)
                 .map(CreditBalance::getActive)
                 .orElse(false);
     }
 
-    public CreditBalance getBalance(String userId) {
-        return creditBalanceRepository.findByUserId(userId).orElse(null);
+    public CreditBalance getBalance(Long userId) {
+        return creditBalanceRepository.findByUser_Id(userId).orElse(null);
     }
 }

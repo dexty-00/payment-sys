@@ -3,7 +3,6 @@ package com.PaymentSystem.demo.Entity.DTO;
 import lombok.Data;
 
 @Data
-public class SwitchRequest {
-    private String userId;
+public class CheckoutRequest {
     private String email;
 }

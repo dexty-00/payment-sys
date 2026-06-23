@@ -3,6 +3,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import java.time.Instant;
 
+
 @Entity
 @Table(name = "credit_balances")
 @Data
@@ -15,14 +16,15 @@ public class CreditBalance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String userId;
+    @OneToOne
+    @JoinColumn(name = "user_fk", nullable = false)
+    private User user;
 
     @Column(nullable = false)
-    private Integer balance;  // Credits remaining
+    private Integer balance;
 
     @Column(nullable = false)
-    private Integer monthlyCost;  // How many credits deducted per month
+    private Integer monthlyCost;
 
     @Column
     private Instant lastDeductionDate;
@@ -31,7 +33,7 @@ public class CreditBalance {
     private Instant nextDeductionDate;
 
     @Column
-    private Boolean active;  // Is credit subscription currently active?
+    private Boolean active;
 
     @Column
     private Instant createdAt;
@@ -58,7 +60,7 @@ public class CreditBalance {
         if (hasEnoughCredits()) {
             balance -= monthlyCost;
             lastDeductionDate = Instant.now();
-            nextDeductionDate = Instant.now().plusSeconds(30 * 24 * 60 * 60); // ~30 days
+            nextDeductionDate = Instant.now().plusSeconds(30L * 24 * 60 * 60);
         }
     }
 }

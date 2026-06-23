@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/credits")
@@ -19,24 +20,24 @@ public class CreditController {
 
     @PostMapping("/subscribe")
     public ResponseEntity<CreditBalance> subscribe(@RequestBody CreditSubscriptionRequest request) {
-        // Use manager to switch from Stripe to credits
-        return ResponseEntity.ok(subscriptionManager.switchToCredits(request.getUserId(), request));
+        return ResponseEntity.ok(subscriptionManager.switchToCredits(
+                request.getUserId(), request.getInitialBalance(), request.getMonthlyCost()));
     }
 
     @PostMapping("/topup")
     public ResponseEntity<CreditBalance> topUp(
-            @RequestParam String userId,
+            @RequestParam Long userId,
             @RequestParam Integer amount) {
         return ResponseEntity.ok(creditService.topUpCredits(userId, amount));
     }
 
     @GetMapping("/balance")
-    public ResponseEntity<CreditBalance> getBalance(@RequestParam String userId) {
+    public ResponseEntity<CreditBalance> getBalance(@RequestParam Long userId) {
         return ResponseEntity.ok(creditService.getBalance(userId));
     }
 
     @PostMapping("/deduct")
-    public ResponseEntity<Boolean> deduct(@RequestParam String userId) {
+    public ResponseEntity<Boolean> deduct(@RequestParam Long userId) {
         return ResponseEntity.ok(creditService.deductCredits(userId));
     }
 }

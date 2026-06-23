@@ -8,6 +8,9 @@ import com.PaymentSystem.demo.Service.SubscriptionManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -21,8 +24,7 @@ public class SubscriptionStatusController {
     private final SubscriptionManager subscriptionManager;
 
     @GetMapping("/status")
-    public ResponseEntity<?> getStatus(@RequestParam String userId) {
-        // Check Stripe
+    public ResponseEntity<?> getStatus(@RequestParam Long userId) {
         SubscriptionRecord stripeSub = stripeService.getSubscriptionByUserId(userId);
         if (stripeSub != null && stripeSub.isActive()) {
             return ResponseEntity.ok(Map.of(
@@ -35,7 +37,6 @@ public class SubscriptionStatusController {
             ));
         }
 
-        // Check Credits
         CreditBalance credit = creditService.getBalance(userId);
         if (credit != null && credit.getActive()) {
             return ResponseEntity.ok(Map.of(
@@ -54,7 +55,7 @@ public class SubscriptionStatusController {
     }
 
     @GetMapping("/check")
-    public ResponseEntity<Boolean> isSubscribed(@RequestParam String userId) {
+    public ResponseEntity<Boolean> isSubscribed(@RequestParam Long userId) {
         return ResponseEntity.ok(subscriptionManager.isUserSubscribed(userId));
     }
 }
