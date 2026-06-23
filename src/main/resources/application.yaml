@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+stripe:
+  webhook:
+    secret: whsec_6a2ab09e2deeadf30bcd448c050391a5d5c9f7a1e565b39bc57018928049bd66
+  api:
+    key: sk_test_51SuFceBmkb6reGNaYZStwAwIF7WXGIL8O55NDN0W95QC5G2ANEa8sny5HrbH8vYLkezklWk5BFxenIQirmjjTYDV00CuMQGHmn
+  price:
+    id: price_1TlJYZBmkb6reGNag7ZTPg6x
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/payments
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
